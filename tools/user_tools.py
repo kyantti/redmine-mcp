@@ -10,7 +10,7 @@ def register_user_tools(mcp, user_service: UserService):
     """Register user-related MCP tools with the FastMCP server"""
     
     @mcp.tool()
-    def get_users() -> str:
+    def get_all_users() -> str:
         """Get a list of all users."""
         result = user_service.get_all()
         
@@ -33,7 +33,7 @@ def register_user_tools(mcp, user_service: UserService):
             return format_error(result)
 
     @mcp.tool()
-    def get_user(user_id: int) -> str:
+    def get_user_by_id(user_id: int) -> str:
         """Get detailed information about a specific user.
         
         Args:
@@ -44,7 +44,7 @@ def register_user_tools(mcp, user_service: UserService):
         if result.success:
             user = result.data
             if not user:
-                return "❌ No user data returned"
+                return "No user data returned"
                 
             output = [f"User #{user['id']}: {user['firstname']} {user['lastname']}"]
             output.append(f"Login: {user['login']}")

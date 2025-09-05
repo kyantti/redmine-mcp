@@ -1,9 +1,9 @@
 """
-Tracker service implementing the Repository pattern for Redmine Trackers.
+Tracker service implementing for Redmine Trackers.
 """
 
 from typing import Dict, Any
-from models.models import OperationResult, safe_getattr, get_resource_name
+from models.models import OperationResult, safe_getattr
 from .base_service import RedmineService
 
 
@@ -26,9 +26,7 @@ class TrackerService(RedmineService):
                 message=f"Tracker {id} retrieved successfully",
                 data={
                     "id": tracker.id,
-                    "name": safe_getattr(tracker, "name", "No name"),
-                    "default_status": get_resource_name(getattr(tracker, "default_status", None)),
-                    "description": safe_getattr(tracker, "description", "No description")
+                    "name": safe_getattr(tracker, "name", "No name")
                 }
             )
         except Exception as e:
@@ -46,9 +44,7 @@ class TrackerService(RedmineService):
             for tracker in trackers:
                 tracker_data = {
                     "id": tracker.id,
-                    "name": safe_getattr(tracker, "name", "No name"),
-                    "default_status": get_resource_name(getattr(tracker, "default_status", None)),
-                    "description": safe_getattr(tracker, "description", "No description")
+                    "name": safe_getattr(tracker, "name", "No name")
                 }
                 trackers_data.append(tracker_data)
             

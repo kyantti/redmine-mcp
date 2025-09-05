@@ -1,5 +1,5 @@
 """
-Time Entry service implementing the Repository pattern for Redmine Time Entries.
+Time Entry service for Redmine Time Entries.
 """
 
 from typing import Dict, Any

@@ -40,7 +40,7 @@ def register_time_entry_tools(mcp, time_entry_service: TimeEntryService, redmine
         result = time_entry_service.create(time_data)
         
         if result.success:
-            return f"✅ {result.message}"
+            return f"{result.message}"
         else:
             return format_error(result)
 
@@ -79,12 +79,12 @@ def register_time_entry_tools(mcp, time_entry_service: TimeEntryService, redmine
         
         if result.success:
             updated_fields = result.data.get('updated_fields', []) if result.data else []
-            return f"✅ {result.message}\nUpdated fields: {', '.join(updated_fields)}"
+            return f"{result.message}\nUpdated fields: {', '.join(updated_fields)}"
         else:
             return format_error(result)
 
     @mcp.tool()
-    def get_time_activities() -> str:
+    def get_all_time_entry_activities() -> str:
         """Get all available time tracking activities."""
         try:
             activities = redmine.time_entry_activity.all()
@@ -98,7 +98,7 @@ def register_time_entry_tools(mcp, time_entry_service: TimeEntryService, redmine
             return f"Error retrieving time entry activities: {str(e)}"
 
     @mcp.tool()
-    def get_time_entries_by_issue(issue_id: int) -> str:
+    def get_all_time_entries_by_issue_id(issue_id: int) -> str:
         """Get all time entries for a specific issue.
         
         Args:
@@ -141,6 +141,6 @@ def register_time_entry_tools(mcp, time_entry_service: TimeEntryService, redmine
         result = time_entry_service.delete(time_entry_id)
         
         if result.success:
-            return f"✅ {result.message}"
+            return f"{result.message}"
         else:
             return format_error(result)

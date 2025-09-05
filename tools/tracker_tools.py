@@ -2,15 +2,15 @@
 Tracker and Status-related MCP tools for Redmine operations.
 """
 
-from services import TrackerService, IssueStatusService
+from services import TrackerService
 from .base_tools import format_error
 
 
-def register_tracker_tools(mcp, tracker_service: TrackerService, issue_status_service: IssueStatusService, redmine):
+def register_tracker_tools(mcp, tracker_service: TrackerService, redmine):
     """Register tracker and status-related MCP tools with the FastMCP server"""
     
     @mcp.tool()
-    def get_trackers() -> str:
+    def get_all_trackers() -> str:
         """Get a list of all available trackers."""
         result = tracker_service.get_all()
         
@@ -31,7 +31,7 @@ def register_tracker_tools(mcp, tracker_service: TrackerService, issue_status_se
             return format_error(result)
 
     @mcp.tool()
-    def get_issue_statuses() -> str:
+    def get_all_issue_statuses() -> str:
         """Get all available issue statuses."""
         try:
             statuses = redmine.issue_status.all()
@@ -45,7 +45,7 @@ def register_tracker_tools(mcp, tracker_service: TrackerService, issue_status_se
             return f"Error retrieving issue statuses: {str(e)}"
 
     @mcp.tool()
-    def get_issue_priorities() -> str:
+    def get_all_issue_priorities() -> str:
         """Get all available issue priorities."""
         try:
             priorities = redmine.issue_priority.all()

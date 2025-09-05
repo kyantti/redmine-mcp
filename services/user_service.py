@@ -1,8 +1,8 @@
 """
-User service implementing the Repository pattern for Redmine Users.
+User service for Redmine Users.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Union
 from models.models import OperationResult, safe_getattr
 from .base_service import RedmineService
 
@@ -10,7 +10,7 @@ from .base_service import RedmineService
 class UserService(RedmineService):
     """Service class for User operations (Read-only)"""
     
-    def get_by_id(self, id: int) -> OperationResult:
+    def get_by_id(self, id: Union[int, str]) -> OperationResult:
         try:
             user = self.redmine.user.get(id)
             return OperationResult(

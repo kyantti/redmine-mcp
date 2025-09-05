@@ -11,7 +11,7 @@ def register_issue_tools(mcp, issue_service: IssueService):
     """Register issue-related MCP tools with the FastMCP server"""
     
     @mcp.tool()
-    def get_issue(issue_id: int) -> str:
+    def get_issue_by_id(issue_id: int) -> str:
         """Get detailed information about a specific issue.
         
         Args:
@@ -22,11 +22,12 @@ def register_issue_tools(mcp, issue_service: IssueService):
         if result.success:
             issue = result.data
             if not issue:
-                return "❌ No issue data returned"
+                return "No issue data returned"
                 
             output = [f"Issue #{issue['id']}: {issue['subject']}"]
             output.append(f"Description: {issue['description']}")
-            output.append(f"Status: {issue['status']}")
+            status_name = issue.get('status', {}).get('name', 'Not set')
+            output.append(f"Status: {status_name}")
             output.append(f"Priority: {issue['priority']}")
             output.append(f"Tracker: {issue['tracker']}")
             output.append(f"Project: {issue['project']}")
@@ -45,49 +46,46 @@ def register_issue_tools(mcp, issue_service: IssueService):
             output.append(f"Spent hours: {issue['spent_hours']}")
             output.append(f"Created: {issue['created_on']}")
             output.append(f"Updated: {issue['updated_on']}")
-            
+
             # Add notes and changes section
             journals = issue.get('journals', [])
             if journals:
-                output.append("\n📝 Notes and Changes:")
+                output.append("\nNotes and Changes:")
                 
                 for i, journal in enumerate(journals, 1):
                     journal_output = f"\n  #{i} - {journal['user']} on {journal['created_on']}"
                     
                     # Add notes if present
                     if journal['notes'] and journal['notes'].strip():
-                        journal_output += f"\n    📝 Note: {journal['notes']}"
+                        journal_output += f"\n    Note: {journal['notes']}"
                     
                     # Add field changes if present
                     if journal['details']:
-                        journal_output += "\n    🔄 Changes:"
+                        journal_output += "\n  Changes:"
                         for detail in journal['details']:
                             property_name = detail['property']
                             field_name = detail['name']
-                            old_value = detail['old_value'] or "(empty)"
-                            new_value = detail['new_value'] or "(empty)"
+                            old_value = detail.get('old_value', 'N/A')
+                            new_value = detail.get('new_value', 'N/A')
                             
-                            if property_name == 'attr':
-                                # Standard field change
-                                journal_output += f"\n      • {field_name}: {old_value} → {new_value}"
-                            elif property_name == 'cf':
-                                # Custom field change
-                                journal_output += f"\n      • Custom field {field_name}: {old_value} → {new_value}"
-                            elif property_name == 'attachment':
-                                # Attachment changes
-                                if old_value == "" and new_value != "":
-                                    journal_output += f"\n      • Added attachment: {new_value}"
-                                elif old_value != "" and new_value == "":
-                                    journal_output += f"\n      • Removed attachment: {old_value}"
+                            # Format values for display
+                            if old_value is None:
+                                old_value = "Not set"
+                            if new_value is None:
+                                new_value = "Not set"
+                            
+                            if property_name == "attr":
+                                journal_output += f"\n    - {field_name} changed from '{old_value}' to '{new_value}'"
+                            elif property_name == "attachment":
+                                journal_output += f"\n    - Attachment added: {field_name}"
                             else:
-                                # Other property changes
-                                journal_output += f"\n      • {property_name} {field_name}: {old_value} → {new_value}"
+                                journal_output += f"\n    - {field_name} changed from '{old_value}' to '{new_value}'"
                     
                     output.append(journal_output)
                 
                 output.append(f"\nTotal activity entries: {len(journals)}")
             else:
-                output.append("\n📝 Notes and Changes: No activity history found")
+                output.append("\nNotes and Changes: No activity history found")
             
             return "\n".join(output)
         else:
@@ -136,7 +134,7 @@ def register_issue_tools(mcp, issue_service: IssueService):
         result = issue_service.create(issue_data)
         
         if result.success:
-            return f"✅ {result.message}"
+            return f"{result.message}"
         else:
             return format_error(result)
 
@@ -183,7 +181,7 @@ def register_issue_tools(mcp, issue_service: IssueService):
         
         if result.success:
             updated_fields = result.data.get('updated_fields', []) if result.data else []
-            return f"✅ {result.message}\nUpdated fields: {', '.join(updated_fields)}"
+            return f"{result.message}\nUpdated fields: {', '.join(updated_fields)}"
         else:
             return format_error(result)
 
@@ -197,7 +195,7 @@ def register_issue_tools(mcp, issue_service: IssueService):
         result = issue_service.delete(issue_id)
         
         if result.success:
-            return f"✅ {result.message}"
+            return f"{result.message}"
         else:
             return format_error(result)
 
@@ -226,7 +224,8 @@ def register_issue_tools(mcp, issue_service: IssueService):
             for issue in issues_data:
                 issue_info = f"\n#{issue['id']}: {issue['subject']}"
                 issue_info += f"\n  Project: {issue['project']}"
-                issue_info += f"\n  Status: {issue['status']}"
+                status_name = issue.get('status', {}).get('name', 'Not set')
+                issue_info += f"\n  Status: {status_name}"
                 issue_info += f"\n  Priority: {issue['priority']}"
                 issue_info += f"\n  Tracker: {issue['tracker']}"
                 issue_info += f"\n  Assigned to: {issue['assigned_to']}"
@@ -244,7 +243,7 @@ def register_issue_tools(mcp, issue_service: IssueService):
             return format_error(result)
 
     @mcp.tool()
-    def search_issues(
+    def get_all_issues(
         subject: Optional[str] = None,
         project_id: Optional[int] = None,
         status_id: Optional[int] = None,
@@ -301,7 +300,8 @@ def register_issue_tools(mcp, issue_service: IssueService):
             for issue in issues_data:
                 issue_info = f"\n#{issue['id']}: {issue['subject']}"
                 issue_info += f"\n  Project: {issue['project']}"
-                issue_info += f"\n  Status: {issue['status']}"
+                status_name = issue.get('status', {}).get('name', 'Not set')
+                issue_info += f"\n  Status: {status_name}"
                 issue_info += f"\n  Priority: {issue['priority']}"
                 issue_info += f"\n  Tracker: {issue['tracker']}"
                 issue_info += f"\n  Assigned to: {issue['assigned_to']}"
@@ -339,7 +339,8 @@ def register_issue_tools(mcp, issue_service: IssueService):
             for issue in issues_data:
                 issue_info = f"\n#{issue['id']}: {issue['subject']}"
                 issue_info += f"\n  Project: {issue['project']}"
-                issue_info += f"\n  Status: {issue['status']}"
+                status_name = issue.get('status', {}).get('name', 'Not set')
+                issue_info += f"\n  Status: {status_name}"
                 issue_info += f"\n  Priority: {issue['priority']}"
                 issue_info += f"\n  Tracker: {issue['tracker']}"
                 issue_info += f"\n  Created: {issue['created_on']}"
@@ -354,28 +355,28 @@ def register_issue_tools(mcp, issue_service: IssueService):
             return "\n".join(output)
         else:
             return format_error(result)
-
+        
     @mcp.tool()
     def get_issue_activity(issue_id: int) -> str:
         """Get the activity history (notes and changes) for a specific issue.
         
         Args:
-            issue_id: The ID of the issue to retrieve activity for
+            issue_id: The ID of the issue
         """
         result = issue_service.get_by_id(issue_id)
         
         if result.success:
             issue = result.data
             if not issue:
-                return "❌ No issue data returned"
+                return "No issue data returned"
             
             # Extract journals for activity
             journals = issue.get('journals', [])
             
             if not journals:
-                return f"📝 Issue #{issue_id}: No activity history found"
+                return f"Issue #{issue_id}: No activity history found"
             
-            output = [f"📝 Activity History for Issue #{issue_id}: {issue['subject']}"]
+            output = [f"Activity History for Issue #{issue_id}: {issue['subject']}"]
             output.append(f"Total activity entries: {len(journals)}\n")
             
             for i, journal in enumerate(journals, 1):
@@ -383,42 +384,30 @@ def register_issue_tools(mcp, issue_service: IssueService):
                 
                 # Add notes if present
                 if journal['notes'] and journal['notes'].strip():
-                    journal_output += f"\n  📝 Note: {journal['notes']}"
+                    journal_output += f"\n  Note: {journal['notes']}"
                 
                 # Add field changes if present
                 if journal['details']:
-                    journal_output += "\n  🔄 Changes:"
+                    journal_output += "\n  Changes:"
                     for detail in journal['details']:
                         property_name = detail['property']
                         field_name = detail['name']
-                        old_value = detail['old_value'] or "(empty)"
-                        new_value = detail['new_value'] or "(empty)"
+                        old_value = detail.get('old_value', 'N/A')
+                        new_value = detail.get('new_value', 'N/A')
                         
-                        if property_name == 'attr':
-                            # Standard field change
-                            journal_output += f"\n    • {field_name}: {old_value} → {new_value}"
-                        elif property_name == 'cf':
-                            # Custom field change
-                            journal_output += f"\n    • Custom field {field_name}: {old_value} → {new_value}"
-                        elif property_name == 'attachment':
-                            # Attachment changes
-                            if old_value == "" and new_value != "":
-                                journal_output += f"\n    • Added attachment: {new_value}"
-                            elif old_value != "" and new_value == "":
-                                journal_output += f"\n    • Removed attachment: {old_value}"
+                        if old_value is None:
+                            old_value = "Not set"
+                        if new_value is None:
+                            new_value = "Not set"
+                        
+                        if property_name == "attr":
+                            journal_output += f"\n    - {field_name} changed from '{old_value}' to '{new_value}'"
+                        elif property_name == "attachment":
+                            journal_output += f"\n    - Attachment added: {field_name}"
                         else:
-                            # Other property changes
-                            journal_output += f"\n    • {property_name} {field_name}: {old_value} → {new_value}"
-                
-                # If neither notes nor changes, indicate it's an empty entry
-                if not journal['notes'].strip() and not journal['details']:
-                    journal_output += "\n  (No notes or changes)"
+                            journal_output += f"\n    - {field_name} changed from '{old_value}' to '{new_value}'"
                 
                 output.append(journal_output)
-                
-                # Add separator between entries except for the last one
-                if i < len(journals):
-                    output.append("")
             
             return "\n".join(output)
         else:
@@ -430,19 +419,22 @@ def register_issue_tools(mcp, issue_service: IssueService):
         limit: int = 10,
         status_id: Optional[int] = None
     ) -> str:
-        """Get issues for a project with their activity history (notes and changes).
+        """Get a list of issues from a project, including their latest activity.
         
         Args:
             project_id: The ID of the project
-            limit: Maximum number of issues to retrieve (default: 10)
+            limit: Max number of issues to retrieve (default: 10)
             status_id: Filter by status ID (optional)
         """
-        # Build filter parameters
-        filter_params = {"project_id": project_id, "limit": limit, "include_journals": True}
+        filter_params: Dict[str, Any] = {
+            "project_id": project_id,
+            "limit": limit,
+            "include_journals": True,
+            "sort": "updated_on:desc"
+        }
         if status_id is not None:
             filter_params["status_id"] = status_id
-        
-        # Get issues with journals using the service
+            
         result = issue_service.get_all(**filter_params)
         
         if result.success:
@@ -451,13 +443,14 @@ def register_issue_tools(mcp, issue_service: IssueService):
             if not issues_data:
                 return f"No issues found for project {project_id}."
             
-            output = [f"Issues with Activity History for Project {project_id}:"]
+            output = [f"Issues with Latest Activity for Project {project_id}"]
             if status_id:
                 output[0] += f" (Status ID: {status_id})"
             
             for issue in issues_data:
-                issue_info = f"\n🎫 Issue #{issue['id']}: {issue['subject']}"
-                issue_info += f"\n   Status: {issue['status']} | Priority: {issue['priority']}"
+                issue_info = f"\nIssue #{issue['id']}: {issue['subject']}"
+                status_name = issue.get('status', {}).get('name', 'Not set')
+                issue_info += f"\n   Status: {status_name} | Priority: {issue['priority']}"
                 issue_info += f"\n   Assigned to: {issue['assigned_to']}"
                 issue_info += f"\n   Updated: {issue['updated_on']}"
                 
@@ -466,21 +459,21 @@ def register_issue_tools(mcp, issue_service: IssueService):
                 if journals:
                     notes_count = sum(1 for j in journals if j.get('notes', '').strip())
                     changes_count = sum(1 for j in journals if j.get('details'))
-                    issue_info += f"\n   📝 Activity: {len(journals)} total entries ({notes_count} notes, {changes_count} with changes)"
+                    issue_info += f"\n   Activity: {len(journals)} total entries ({notes_count} notes, {changes_count} with changes)"
                     
                     # Show latest activity
                     if journals:
                         latest = journals[-1]
-                        issue_info += f"\n   🕒 Latest: {latest['user']} on {latest['created_on']}"
+                        issue_info += f"\n   Latest: {latest['user']} on {latest['created_on']}"
                         if latest.get('notes', '').strip():
                             note_preview = latest['notes'][:100] + "..." if len(latest['notes']) > 100 else latest['notes']
                             issue_info += f"\n       Note: {note_preview}"
                 else:
-                    issue_info += "\n   📝 Activity: No history"
+                    issue_info += "\n   Activity: No history"
                 
                 output.append(issue_info)
             
-            output.append(f"\nShowing {len(issues_data)} issue(s) with activity")
+            output.append(f"\n\nShowing latest {len(issues_data)} updated issues.")
             return "\n".join(output)
         else:
             return format_error(result)

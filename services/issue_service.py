@@ -1,5 +1,5 @@
 """
-Issue service implementing the Repository pattern for Redmine Issues.
+Issue service implementing for Redmine Issues.
 """
 
 from typing import Dict, Any, Optional
@@ -21,34 +21,28 @@ class IssueService(RedmineService):
             
             for journal in journals:
                 journal_data = {
-                    "id": getattr(journal, "id", None),
+                    "id": journal.id,
                     "user": get_resource_name(getattr(journal, "user", None)),
                     "notes": safe_getattr(journal, "notes", ""),
                     "created_on": str(getattr(journal, "created_on", "")),
-                    "details": []
+                    "details": getattr(journal, "details", [])
                 }
-                
-                # Extract details (field changes)
-                details = getattr(journal, 'details', [])
-                for detail in details:
-                    if isinstance(detail, dict):
-                        detail_data = {
-                            "property": detail.get("property", ""),
-                            "name": detail.get("name", ""),
-                            "old_value": detail.get("old_value", ""),
-                            "new_value": detail.get("new_value", "")
-                        }
-                    else:
-                        detail_data = {
-                            "property": getattr(detail, "property", ""),
-                            "name": getattr(detail, "name", ""),
-                            "old_value": getattr(detail, "old_value", ""),
-                            "new_value": getattr(detail, "new_value", "")
-                        }
-                    journal_data["details"].append(detail_data)
-                
                 journals_data.append(journal_data)
             
+            # Get all statuses to enrich the issue's status field
+            all_statuses = self.redmine.issue_status.all()
+            status_map = {status.id: status for status in all_statuses}
+            
+            issue_status_obj = getattr(issue, "status", None)
+            status_details = None
+            if issue_status_obj and issue_status_obj.id in status_map:
+                status_resource = status_map[issue_status_obj.id]
+                status_details = {
+                    "id": status_resource.id,
+                    "name": safe_getattr(status_resource, "name", "No name"),
+                    "is_closed": getattr(status_resource, "is_closed", False),
+                }
+
             return OperationResult(
                 success=True,
                 message=f"Issue {id} retrieved successfully",
@@ -56,7 +50,7 @@ class IssueService(RedmineService):
                     "id": issue.id,
                     "subject": safe_getattr(issue, "subject", "No subject"),
                     "description": safe_getattr(issue, "description", "No description"),
-                    "status": get_resource_name(getattr(issue, "status", None)),
+                    "status": status_details,
                     "priority": get_resource_name(getattr(issue, "priority", None)),
                     "tracker": get_resource_name(getattr(issue, "tracker", None)),
                     "project": get_resource_name(getattr(issue, "project", None)),
@@ -96,13 +90,27 @@ class IssueService(RedmineService):
                 issue_list = [issue for issue in issue_list 
                             if subject_filter.lower() in safe_getattr(issue, 'subject', '').lower()]
             
+            # Get all statuses to enrich the issue's status field
+            all_statuses = self.redmine.issue_status.all()
+            status_map = {status.id: status for status in all_statuses}
+            
             issues_data = []
             for issue in issue_list:
+                issue_status_obj = getattr(issue, "status", None)
+                status_details = None
+                if issue_status_obj and issue_status_obj.id in status_map:
+                    status_resource = status_map[issue_status_obj.id]
+                    status_details = {
+                        "id": status_resource.id,
+                        "name": safe_getattr(status_resource, "name", "No name"),
+                        "is_closed": getattr(status_resource, "is_closed", False),
+                    }
+                
                 issue_data = {
                     "id": issue.id,
                     "subject": safe_getattr(issue, "subject", "No subject"),
                     "description": safe_getattr(issue, "description", "No description"),
-                    "status": get_resource_name(getattr(issue, "status", None)),
+                    "status": status_details,
                     "priority": get_resource_name(getattr(issue, "priority", None)),
                     "tracker": get_resource_name(getattr(issue, "tracker", None)),
                     "project": get_resource_name(getattr(issue, "project", None)),
@@ -119,49 +127,20 @@ class IssueService(RedmineService):
                     "spent_hours": getattr(issue, "spent_hours", 0)
                 }
                 
-                # Optionally include journals if requested
+                # Include journals if requested
                 if include_journals:
-                    try:
-                        # Get the issue with journals included
-                        full_issue = self.redmine.issue.get(issue.id, include=['journals'])
-                        journals_data = []
-                        journals = getattr(full_issue, 'journals', [])
-                        
-                        for journal in journals:
-                            journal_data = {
-                                "id": getattr(journal, "id", None),
-                                "user": get_resource_name(getattr(journal, "user", None)),
-                                "notes": safe_getattr(journal, "notes", ""),
-                                "created_on": str(getattr(journal, "created_on", "")),
-                                "details": []
-                            }
-                            
-                            # Extract details (field changes)
-                            details = getattr(journal, 'details', [])
-                            for detail in details:
-                                if isinstance(detail, dict):
-                                    detail_data = {
-                                        "property": detail.get("property", ""),
-                                        "name": detail.get("name", ""),
-                                        "old_value": detail.get("old_value", ""),
-                                        "new_value": detail.get("new_value", "")
-                                    }
-                                else:
-                                    detail_data = {
-                                        "property": getattr(detail, "property", ""),
-                                        "name": getattr(detail, "name", ""),
-                                        "old_value": getattr(detail, "old_value", ""),
-                                        "new_value": getattr(detail, "new_value", "")
-                                    }
-                                journal_data["details"].append(detail_data)
-                            
-                            journals_data.append(journal_data)
-                        
-                        issue_data["journals"] = journals_data
-                    except Exception:
-                        # If journals can't be retrieved for this issue, set empty list
-                        issue_data["journals"] = []
-                
+                    journals_data = []
+                    journals = getattr(self.redmine.issue.get(issue.id, include=['journals']), 'journals', [])
+                    for journal in journals:
+                        journals_data.append({
+                            "id": journal.id,
+                            "user": get_resource_name(getattr(journal, "user", None)),
+                            "notes": safe_getattr(journal, "notes", ""),
+                            "created_on": str(getattr(journal, "created_on", "")),
+                            "details": getattr(journal, "details", [])
+                        })
+                    issue_data["journals"] = journals_data
+                    
                 issues_data.append(issue_data)
             
             return OperationResult(
@@ -196,14 +175,28 @@ class IssueService(RedmineService):
                     matching_issues.append(issue)
                 if len(matching_issues) >= limit:
                     break
-            
+
+            # Get all statuses to enrich the issue's status field
+            all_statuses = self.redmine.issue_status.all()
+            status_map = {status.id: status for status in all_statuses}
+
             issues_data = []
             for issue in matching_issues:
+                issue_status_obj = getattr(issue, "status", None)
+                status_details = None
+                if issue_status_obj and issue_status_obj.id in status_map:
+                    status_resource = status_map[issue_status_obj.id]
+                    status_details = {
+                        "id": status_resource.id,
+                        "name": safe_getattr(status_resource, "name", "No name"),
+                        "is_closed": getattr(status_resource, "is_closed", False),
+                    }
+
                 issue_data = {
                     "id": issue.id,
                     "subject": safe_getattr(issue, "subject", "No subject"),
                     "description": safe_getattr(issue, "description", "No description"),
-                    "status": get_resource_name(getattr(issue, "status", None)),
+                    "status": status_details,
                     "priority": get_resource_name(getattr(issue, "priority", None)),
                     "tracker": get_resource_name(getattr(issue, "tracker", None)),
                     "project": get_resource_name(getattr(issue, "project", None)),
@@ -276,3 +269,4 @@ class IssueService(RedmineService):
                 message=f"Failed to delete issue {id}",
                 error=str(e)
             )
+

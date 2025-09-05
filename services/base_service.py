@@ -1,5 +1,5 @@
 """
-Base service implementing the Repository pattern for Redmine entities.
+Base service for Redmine entities.
 """
 
 from abc import ABC, abstractmethod

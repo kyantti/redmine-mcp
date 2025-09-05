@@ -3,15 +3,15 @@ Project-related MCP tools for Redmine operations.
 """
 
 from typing import Optional
-from services import ProjectService, ProjectMembershipService, IssueService
+from services import ProjectService, IssueService
 from .base_tools import format_error
 
 
-def register_project_tools(mcp, project_service: ProjectService, membership_service: ProjectMembershipService, issue_service: IssueService):
+def register_project_tools(mcp, project_service: ProjectService, issue_service: IssueService):
     """Register project-related MCP tools with the FastMCP server"""
     
     @mcp.tool()
-    def get_projects() -> str:
+    def get_all_projects() -> str:
         """Get a list of all available projects.
         
         Returns:
@@ -43,7 +43,7 @@ def register_project_tools(mcp, project_service: ProjectService, membership_serv
             return format_error(result)
 
     @mcp.tool()
-    def get_project_details(project_id: int) -> str:
+    def get_project_by_id(project_id: int) -> str:
         """Get detailed information about a specific project.
         
         Args:
@@ -54,7 +54,7 @@ def register_project_tools(mcp, project_service: ProjectService, membership_serv
         if result.success:
             project = result.data
             if not project:
-                return "❌ No project data returned"
+                return "No project data returned"
                 
             output = [f"Project #{project['id']}: {project['name']}"]
             output.append(f"Identifier: {project['identifier']}")
@@ -71,85 +71,74 @@ def register_project_tools(mcp, project_service: ProjectService, membership_serv
             output.append(f"Updated: {project['updated_on']}")
             
             # Add time tracking information
-            output.append("\n📊 Time Tracking:")
+            output.append("\nTime Tracking:")
             
             # Allocated hours information
             allocated_hours = project.get('allocated_hours')
             if allocated_hours is not None:
-                if isinstance(allocated_hours, (int, float)) and allocated_hours > 0:
-                    output.append(f"  Allocated Hours: {allocated_hours}")
-                elif allocated_hours == 0:
-                    output.append("  Allocated Hours: 0 (not set or non-billable)")
-                else:
-                    output.append(f"  Allocated Hours: {allocated_hours} (non-numeric)")
+                output.append(f"  Allocated Hours: {allocated_hours}")
             else:
-                output.append("  Allocated Hours: Not configured")
+                output.append("  Allocated Hours: Not set")
             
             # Spent hours information
             spent_hours = project.get('spent_hours')
             if spent_hours is not None:
-                output.append(f"  Spent Hours: {spent_hours}")
+                output.append(f"  Spent Hours: {spent_hours:.2f}")
             else:
-                output.append("  Spent Hours: Could not retrieve")
+                output.append("  Spent Hours: Not available")
             
             # Remaining hours information
             remaining_hours = project.get('remaining_hours')
             if remaining_hours is not None:
-                if remaining_hours >= 0:
-                    output.append(f"  Remaining Hours: {remaining_hours}")
-                else:
-                    output.append(f"  Remaining Hours: {remaining_hours} (over budget by {abs(remaining_hours)} hours)")
+                output.append(f"  Remaining Hours: {remaining_hours:.2f}")
             else:
-                output.append("  Remaining Hours: Cannot calculate")
+                output.append("  Remaining Hours: Not available")
             
             # Add progress information if possible
             if (allocated_hours is not None and spent_hours is not None and 
                 isinstance(allocated_hours, (int, float)) and allocated_hours > 0):
-                progress_percent = (spent_hours / allocated_hours) * 100
-                output.append(f"  Progress: {progress_percent:.1f}% complete")
+                progress = (spent_hours / allocated_hours) * 100
+                output.append(f"  Progress: {progress:.2f}%")
             
             # Add custom fields information
             custom_fields = project.get('custom_fields', {})
             if custom_fields:
-                output.append("\n🔧 Custom Fields:")
+                output.append("\nCustom Fields:")
                 for field_name, field_data in custom_fields.items():
                     value = field_data.get('value', 'Not set')
                     field_id = field_data.get('id', '')
-                    if value and value != 'Not set':
-                        output.append(f"  {field_name}: {value}" + (f" (ID: {field_id})" if field_id else ""))
-                    else:
-                        output.append(f"  {field_name}: Not set" + (f" (ID: {field_id})" if field_id else ""))
+                    output.append(f"  - {field_name} (ID: {field_id}): {value}")
             
             return "\n".join(output)
         else:
             return format_error(result)
 
     @mcp.tool()
-    def get_project_members(project_id: int) -> str:
+    def get_project_members_by_project_id(project_id: int) -> str:
         """Get all members of a project.
         
         Args:
             project_id: The ID of the project
         """
-        result = membership_service.get_by_project(project_id)
+        result = project_service.get_by_id(project_id)
         
         if result.success:
-            memberships_data = result.data.get("memberships", []) if result.data else []
+            project_data = result.data
+            if not project_data:
+                return f"No project found with ID {project_id}"
+
+            memberships_data = project_data.get("members", [])
             
             if not memberships_data:
-                # Get project name for better error message
-                project_result = project_service.get_by_id(project_id)
-                project_name = project_result.data.get("name", f"Project {project_id}") if project_result.success and project_result.data else f"Project {project_id}"
+                project_name = project_data.get("name", f"Project {project_id}")
                 return f"No members found for project '{project_name}' (ID: {project_id})"
             
-            # Get project name for display
-            project_result = project_service.get_by_id(project_id)
-            project_name = project_result.data.get("name", f"Project {project_id}") if project_result.success and project_result.data else f"Project {project_id}"
+            project_name = project_data.get("name", f"Project {project_id}")
             
             output = [f"Members of Project '{project_name}' (ID: {project_id}):"]
             
             for membership in memberships_data:
-                user_info = f"ID: {membership['user_id']} - Name: {membership['user']}"
+                user_info = f"User: {membership['user']}"
                 if membership.get('roles'):
                     user_info += f" - Roles: {', '.join(membership['roles'])}"
                 output.append(user_info)
@@ -160,7 +149,7 @@ def register_project_tools(mcp, project_service: ProjectService, membership_serv
             return format_error(result)
 
     @mcp.tool()
-    def get_project_issues(project_id: int, limit: int = 25, status_id: Optional[int] = None) -> str:
+    def get_all_issues_by_project_id(project_id: int, limit: int = 25, status_id: Optional[int] = None) -> str:
         """Get issues for a specific project using the service layer.
         
         Args:
@@ -193,7 +182,8 @@ def register_project_tools(mcp, project_service: ProjectService, membership_serv
             
             for issue in issues_data:
                 issue_info = f"\n#{issue['id']}: {issue['subject']}"
-                issue_info += f"\n  Status: {issue['status']}"
+                status_name = issue.get('status', {}).get('name', 'Not set')
+                issue_info += f"\n  Status: {status_name}"
                 issue_info += f"\n  Priority: {issue['priority']}"
                 issue_info += f"\n  Tracker: {issue['tracker']}"
                 issue_info += f"\n  Assigned to: {issue['assigned_to']}"

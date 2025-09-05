@@ -2,10 +2,9 @@
 Base functionality for MCP tools.
 """
 
-
 def format_error(result) -> str:
     """Format error message from operation result"""
-    return f"❌ {result.message}\nError: {result.error}"
+    return f"{result.message}\nError: {result.error}"
 
 
 def safe_format_field(value, default="Not assigned") -> str:

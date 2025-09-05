@@ -8,8 +8,6 @@ from .time_entry_service import TimeEntryService
 from .project_service import ProjectService
 from .user_service import UserService
 from .tracker_service import TrackerService
-from .issue_status_service import IssueStatusService
-from .project_membership_service import ProjectMembershipService
 
 __all__ = [
     'RedmineService',
@@ -18,6 +16,4 @@ __all__ = [
     'ProjectService',
     'UserService',
     'TrackerService',
-    'IssueStatusService',
-    'ProjectMembershipService',
 ]
