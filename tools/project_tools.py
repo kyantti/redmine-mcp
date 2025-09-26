@@ -3,11 +3,11 @@ Project-related MCP tools for Redmine operations.
 """
 
 from typing import Optional
-from services import ProjectService, IssueService
+from services import ProjectService, ProjectMembershipService, IssueService
 from .base_tools import format_error
 
 
-def register_project_tools(mcp, project_service: ProjectService, issue_service: IssueService):
+def register_project_tools(mcp, project_service: ProjectService, membership_service: ProjectMembershipService, issue_service: IssueService):
     """Register project-related MCP tools with the FastMCP server"""
     
     @mcp.tool()
@@ -54,7 +54,7 @@ def register_project_tools(mcp, project_service: ProjectService, issue_service: 
         if result.success:
             project = result.data
             if not project:
-                return "No project data returned"
+                return "❌ No project data returned"
                 
             output = [f"Project #{project['id']}: {project['name']}"]
             output.append(f"Identifier: {project['identifier']}")
@@ -71,43 +71,54 @@ def register_project_tools(mcp, project_service: ProjectService, issue_service: 
             output.append(f"Updated: {project['updated_on']}")
             
             # Add time tracking information
-            output.append("\nTime Tracking:")
+            output.append("\n📊 Time Tracking:")
             
             # Allocated hours information
             allocated_hours = project.get('allocated_hours')
             if allocated_hours is not None:
-                output.append(f"  Allocated Hours: {allocated_hours}")
+                if isinstance(allocated_hours, (int, float)) and allocated_hours > 0:
+                    output.append(f"  Allocated Hours: {allocated_hours}")
+                elif allocated_hours == 0:
+                    output.append("  Allocated Hours: 0 (not set or non-billable)")
+                else:
+                    output.append(f"  Allocated Hours: {allocated_hours} (non-numeric)")
             else:
-                output.append("  Allocated Hours: Not set")
+                output.append("  Allocated Hours: Not configured")
             
             # Spent hours information
             spent_hours = project.get('spent_hours')
             if spent_hours is not None:
-                output.append(f"  Spent Hours: {spent_hours:.2f}")
+                output.append(f"  Spent Hours: {spent_hours}")
             else:
-                output.append("  Spent Hours: Not available")
+                output.append("  Spent Hours: Could not retrieve")
             
             # Remaining hours information
             remaining_hours = project.get('remaining_hours')
             if remaining_hours is not None:
-                output.append(f"  Remaining Hours: {remaining_hours:.2f}")
+                if remaining_hours >= 0:
+                    output.append(f"  Remaining Hours: {remaining_hours}")
+                else:
+                    output.append(f"  Remaining Hours: {remaining_hours} (over budget by {abs(remaining_hours)} hours)")
             else:
-                output.append("  Remaining Hours: Not available")
+                output.append("  Remaining Hours: Cannot calculate")
             
             # Add progress information if possible
             if (allocated_hours is not None and spent_hours is not None and 
                 isinstance(allocated_hours, (int, float)) and allocated_hours > 0):
-                progress = (spent_hours / allocated_hours) * 100
-                output.append(f"  Progress: {progress:.2f}%")
+                progress_percent = (spent_hours / allocated_hours) * 100
+                output.append(f"  Progress: {progress_percent:.1f}% complete")
             
             # Add custom fields information
             custom_fields = project.get('custom_fields', {})
             if custom_fields:
-                output.append("\nCustom Fields:")
+                output.append("\n🔧 Custom Fields:")
                 for field_name, field_data in custom_fields.items():
                     value = field_data.get('value', 'Not set')
                     field_id = field_data.get('id', '')
-                    output.append(f"  - {field_name} (ID: {field_id}): {value}")
+                    if value and value != 'Not set':
+                        output.append(f"  {field_name}: {value}" + (f" (ID: {field_id})" if field_id else ""))
+                    else:
+                        output.append(f"  {field_name}: Not set" + (f" (ID: {field_id})" if field_id else ""))
             
             return "\n".join(output)
         else:
@@ -120,25 +131,25 @@ def register_project_tools(mcp, project_service: ProjectService, issue_service: 
         Args:
             project_id: The ID of the project
         """
-        result = project_service.get_by_id(project_id)
+        result = membership_service.get_by_project(project_id)
         
         if result.success:
-            project_data = result.data
-            if not project_data:
-                return f"No project found with ID {project_id}"
-
-            memberships_data = project_data.get("members", [])
+            memberships_data = result.data.get("memberships", []) if result.data else []
             
             if not memberships_data:
-                project_name = project_data.get("name", f"Project {project_id}")
+                # Get project name for better error message
+                project_result = project_service.get_by_id(project_id)
+                project_name = project_result.data.get("name", f"Project {project_id}") if project_result.success and project_result.data else f"Project {project_id}"
                 return f"No members found for project '{project_name}' (ID: {project_id})"
             
-            project_name = project_data.get("name", f"Project {project_id}")
+            # Get project name for display
+            project_result = project_service.get_by_id(project_id)
+            project_name = project_result.data.get("name", f"Project {project_id}") if project_result.success and project_result.data else f"Project {project_id}"
             
             output = [f"Members of Project '{project_name}' (ID: {project_id}):"]
             
             for membership in memberships_data:
-                user_info = f"User: {membership['user']}"
+                user_info = f"ID: {membership['user_id']} - Name: {membership['user']}"
                 if membership.get('roles'):
                     user_info += f" - Roles: {', '.join(membership['roles'])}"
                 output.append(user_info)
